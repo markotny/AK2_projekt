@@ -13,16 +13,32 @@
     bufLen = 50000000
     colBufLen = 10000000
 
+    # luminance factors * 10000,
+    # luminance = (lumR * R + lumG * G + lumB * B)/10000
+    lumR = 2126
+    lumG = 7152
+    lumB = 722
+
+    # TODO: scale: .ascii "$@B%8&WM*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1?-_+~<>i!lI:,"^`'. "
+
     f_in: .ascii "test.ppm\0"
+    # TODO: f_out: .ascii "out\0"
 
 .bss
     .comm file_buf, bufLen
     .comm red, colBufLen
     .comm green, colBufLen
     .comm blue, colBufLen
+    .comm lum, colBufLen
+    .comm file_out, colBufLen
     .comm file_len, 8
     .comm width, 8
     .comm height, 8
+    .comm fontWidth, 8
+    .comm fontHeight, 8
+    .comm columnCount, 8
+    .comm rowCount, 8
+    .comm ignore, 8
     .comm to_numBuf, 4      # buf to get_width char to numbers
     
 .text
@@ -50,6 +66,89 @@ load_file:
 
     push $file_buf
     call divide_by_color
+
+    movq $1, fontWidth
+    mov width, %rax
+    mov $0, %rdx
+    divq fontWidth
+    mov %rax, columnCount
+    mov %rdx, ignore
+
+    mov fontWidth, %rax
+    mov $2, %rdi
+    mul %rdi
+    mov %rax, fontHeight
+
+    mov height, %rax
+    mov $0, %rdx
+    divq fontHeight
+    mov %rax, rowCount
+
+    mov fontHeight, %rax
+    dec %rax
+    mulq width
+    add %rax, ignore    # skip pixels covered by font char
+
+    mov $0, %r8     # current pixel index
+    mov $0, %r9     # current row
+    mov $0, %r11    # lum/char table iterator
+nextRow:
+    mov $0, %r10    # current column
+    nextCol:
+        call getRect
+        add fontWidth, %r8
+        inc %r10
+        cmp columnCount, %r10
+        jl nextCol
+    add ignore, %r8
+    inc %r9
+    cmp rowCount, %r9
+    jl nextRow
+
+    mov $0, %r8
+    mov $4, %r9
+    mov $0, %rdi
+    mov $0, %rsi
+
+/* TODO:
+to_chars:
+    mov $0, %rax
+    movb lum(, %r8, 1), %al
+    mov $0, %rdx
+    div %r9
+    mov scale(, %rax, 1), %r10b
+    mov %r10b, file_out(, %rdi, 1) 
+    inc %rdi
+    inc %r8
+    inc %rsi
+    cmp columnCount, %rsi
+    jl to_chars_skip
+
+    movb $'\n', file_out(, %rdi, 1)
+    inc %rdi
+    mov $0, %rsi
+
+    to_chars_skip:
+    cmp %r11, %r8
+    jl to_chars
+
+    mov %rdi, %r15
+
+    movq $SYSOPEN, %rax
+    movq $f_out, %rdi
+    movq $O_WR_CRT_TRNC, %rsi
+    movq $0666, %rdx
+    syscall
+
+    movq %rax, %rdi  # file handle
+    movq $SYSWRITE, %rax
+    movq $file_out, %rsi
+    movq %r15, %rdx
+    syscall
+
+    movq $SYSCLOSE, %rax    # file handle still in %rdi
+    syscall
+    */
 
 exit:
     movq $SYSEXIT, %rax
@@ -201,3 +300,53 @@ to_number:
     pop %rbp
     add $8, %rsp
 ret
+
+getRect:    # r8 - buf index
+    mov %r8, %rdi
+    mov $10000, %r14    # factors were multiplied by 10000
+    mov $0, %r15
+    mov $0, %rbx    # RectRows iterator
+    RectRows:
+        mov $0, %rcx    # cols iterator
+        RectCols:
+            mov $0, %rax
+            movb red(, %rdi, 1), %al
+            mov $lumR, %r12
+            mul %r12
+            mov %rax, %r13
+
+            mov $0, %rax
+            movb green(, %rdi, 1), %al
+            mov $lumG, %r12
+            mul %r12
+            add %rax, %r13
+
+            mov $0, %rax
+            movb blue(, %rdi, 1), %al
+            mov $lumB, %r12
+            mul %r12
+            add %r13, %rax
+            mov $0, %rdx
+            div %r14
+            add %rax, %r15
+
+            inc %rdi
+            inc %rcx
+            cmp fontWidth, %rcx
+            jl RectCols
+        sub fontWidth, %rdi
+        add width, %rdi
+        inc %rbx
+        cmp fontHeight, %rbx
+        jl RectRows
+    mov fontWidth, %rax
+    mulq fontHeight
+    mov %rax, %rdi
+    mov %r15, %rax
+    mov $0, %rdx
+    div %rdi
+
+    mov %rax, lum(, %r11, 1)
+    inc %r11
+    ret
+
