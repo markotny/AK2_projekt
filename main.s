@@ -19,10 +19,16 @@
     lumG = 7152
     lumB = 722
 
-    # TODO: scale: .ascii "$@B%8&WM*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1?-_+~<>i!lI:,"^`'. "
-
+    scale: .ascii "$@B%8&WM*oahkbdpqwmZO0QLCJUYXzvunxrjft/|()1{}]?-_+~<>i!lI:,^`'. "
+                  
     f_in: .ascii "test.ppm\0"
-    # TODO: f_out: .ascii "out\0"
+    f_out: .ascii "out.txt\0"
+
+    string: .asciz "%s"
+    decimal: .asciz "%d"
+    file_q: .asciz "Podaj nazwe pliku\n"
+    size_q: .asciz "Podaj szerokosc czcionki\n"
+    file_err: .asciz "Zla nazwa pliku\n"
 
 .bss
     .comm file_buf, bufLen
@@ -42,8 +48,26 @@
     .comm to_numBuf, 4      # buf to get_width char to numbers
     
 .text
-    .globl _start
-    _start:
+    .global main
+    main:
+
+    mov $0, %rax
+    mov $file_q, %rdi
+    call printf
+
+    mov $0, %rax
+    mov $string, %rdi
+    mov $f_in, %rsi
+    call scanf
+
+    mov $0, %rax
+    mov $size_q, %rdi
+    call printf
+
+    mov $0, %rax
+    mov $decimal, %rdi
+    mov $fontWidth, %rsi
+    call scanf
 
 load_file:
     movq $SYSOPEN, %rax
@@ -51,6 +75,9 @@ load_file:
     movq $O_RDONLY, %rsi
     movq $0666, %rdx
     syscall
+
+    cmp $-2, %rax
+    je wrong_file_name
 
     movq %rax, %rdi  # file handle
     movq $SYSREAD, %rax
@@ -67,7 +94,6 @@ load_file:
     push $file_buf
     call divide_by_color
 
-    movq $1, fontWidth
     mov width, %rax
     mov $0, %rdx
     divq fontWidth
@@ -110,9 +136,9 @@ nextRow:
     mov $0, %rdi
     mov $0, %rsi
 
-/* TODO:
 to_chars:
     mov $0, %rax
+    mov $0, %r10
     movb lum(, %r8, 1), %al
     mov $0, %rdx
     div %r9
@@ -148,12 +174,18 @@ to_chars:
 
     movq $SYSCLOSE, %rax    # file handle still in %rdi
     syscall
-    */
+    
 
 exit:
     movq $SYSEXIT, %rax
     movq $EXIT_SUCCESS, %rdi
     syscall
+
+wrong_file_name:
+    mov $0, %rax
+    mov $file_err, %rdi
+    call printf
+    jmp exit
 
 
 divide_by_color:    
