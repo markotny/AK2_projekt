@@ -21,8 +21,7 @@
 
     scale: .ascii "$@B%8&WM*oahkbdpqwmZO0QLCJUYXzvunxrjft/|()1{}]?-_+~<>i!lI:,^`'. "
                   
-    f_in: .ascii "test.ppm\0"
-    f_out: .ascii "out.txt\0"
+    f_out: .asciz "out.txt"
 
     string: .asciz "%s"
     decimal: .asciz "%d"
@@ -31,6 +30,7 @@
     file_err: .asciz "Zla nazwa pliku\n"
 
 .bss
+    .comm f_in, 30
     .comm file_buf, bufLen
     .comm red, colBufLen
     .comm green, colBufLen
@@ -98,11 +98,12 @@ load_file:
     mov $0, %rdx
     divq fontWidth
     mov %rax, columnCount
-    mov %rdx, ignore
+    mov %rdx, ignore        # ignore division remainder
+                            # (smaller than char font width)
 
     mov fontWidth, %rax
-    mov $2, %rdi
-    mul %rdi
+    mov $2, %rdi            # font height is 2 * font width
+    mul %rdi                # (1:2 proportions)
     mov %rax, fontHeight
 
     mov height, %rax
@@ -131,10 +132,10 @@ nextRow:
     cmp rowCount, %r9
     jl nextRow
 
-    mov $0, %r8
-    mov $4, %r9
-    mov $0, %rdi
-    mov $0, %rsi
+    mov $0, %r8     # lum buf iterator
+    mov $4, %r9     # divide by 4 to assign char from scale
+    mov $0, %rdi    # file_out iterator
+    mov $0, %rsi    # column count iterator
 
 to_chars:
     mov $0, %rax
@@ -148,7 +149,7 @@ to_chars:
     inc %r8
     inc %rsi
     cmp columnCount, %rsi
-    jl to_chars_skip
+    jl to_chars_skip    # add new line if reached column count
 
     movb $'\n', file_out(, %rdi, 1)
     inc %rdi
@@ -158,7 +159,7 @@ to_chars:
     cmp %r11, %r8
     jl to_chars
 
-    mov %rdi, %r15
+    mov %rdi, %r15      # file length
 
     movq $SYSOPEN, %rax
     movq $f_out, %rdi
@@ -191,12 +192,11 @@ wrong_file_name:
 divide_by_color:    
     push %rbp
     mov %rsp, %rbp
-    # sub $16, %rsp
     mov 16(%rbp), %rsi  # %rsi - reg holding buf addr
     mov $0, %rdi        # %rdi - file_buf iterator
     mov $0, %r15        # %r15 - pixel colors iterator
 
-    movw (%rsi, %rdi, 1), %bx   # PPM file begins with P3 magic number
+    movw (%rsi, %rdi, 1), %bx   # PPM file begins with P3 number
     cmp $'P', %bl
     jne wrong_format
     cmp $'3', %bh
@@ -207,26 +207,26 @@ divide_by_color:
 read_header:
     movb (%rsi, %rdi, 1), %bl
     inc %rdi
-    cmp $'#', %bl
+    cmp $'#', %bl       # skip comment lines
     je comment
     
-    cmp $' ', %bl
+    cmp $' ', %bl       # if reached space, width in to_numBuf
     je get_width
 
-    cmp $'\n', %bl
+    cmp $'\n', %bl      # if reached new line, height in to_numBuf
     je get_height
 
-    movb %bl, to_numBuf(, %rcx, 1)
+    movb %bl, to_numBuf(, %rcx, 1) # read all width/height digits
     inc %rcx
     jmp read_header
 
 get_width:
-    push %rcx
-    push $to_numBuf
+    push %rcx       # push number length
+    push $to_numBuf # push buf addr
     call to_number
-    pop width
+    pop width       # to_number returns by stack
     mov $0, %rcx
-    jmp read_header
+    jmp read_header # continue to read height
 
 get_height:
     push %rcx
@@ -234,10 +234,10 @@ get_height:
     call to_number
     pop height
     mov $0, %rcx
-    add $4, %rdi    # skip color depth (255)
+    add $4, %rdi    # skip color depth (assume 255)
     jmp read_pixel
 
-comment:
+comment:    # in loop until new line
     movb (%rsi, %rdi, 1), %bl
     inc %rdi
     cmp $'\n', %bl
@@ -248,12 +248,12 @@ read_pixel:
     read_red:
         movb (%rsi, %rdi, 1), %bl
         inc %rdi
-        cmp $'\n', %bl  # after new line (every 5 pixels)
+        cmp $'\n', %bl  # skip new line (every 5 pixels)
         je read_red
         movb %bl, to_numBuf(, %rcx, 1)
         inc %rcx
         cmp $'0', %bl   # ' ', '\n' < '0'
-        jge read_red
+        jge read_red    # (if greater, not finished reading number)
 
         dec %rcx        # don't include ' '
         push %rcx
@@ -296,10 +296,15 @@ read_pixel:
     cmp file_len, %rdi
     jl read_pixel
 
-wrong_format:
     mov %rbp, %rsp
     pop %rbp
 ret
+
+wrong_format:
+    mov %rbp, %rsp
+    pop %rbp
+    add $8, %rsp    # skip ret addr to fix stack pointer
+    jmp exit
 
 to_number:
     push %rbp   
@@ -333,11 +338,11 @@ to_number:
     add $8, %rsp
 ret
 
-getRect:    # r8 - buf index
+getRect:                # r8 - buf index
     mov %r8, %rdi
     mov $10000, %r14    # factors were multiplied by 10000
-    mov $0, %r15
-    mov $0, %rbx    # RectRows iterator
+    mov $0, %r15        # rect lum buffor
+    mov $0, %rbx        # RectRows iterator
     RectRows:
         mov $0, %rcx    # cols iterator
         RectCols:
@@ -366,12 +371,12 @@ getRect:    # r8 - buf index
             inc %rcx
             cmp fontWidth, %rcx
             jl RectCols
-        sub fontWidth, %rdi
-        add width, %rdi
+        sub fontWidth, %rdi     # return to first column
+        add width, %rdi         # jump to next row
         inc %rbx
         cmp fontHeight, %rbx
         jl RectRows
-    mov fontWidth, %rax
+    mov fontWidth, %rax         # calculate average luminance
     mulq fontHeight
     mov %rax, %rdi
     mov %r15, %rax
