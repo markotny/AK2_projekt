@@ -11,13 +11,17 @@
 \parbox[b][\paperheight]{\paperwidth}{%
 \vfill
 \centering
-\includegraphics[width=0.9\paperwidth,height=0.9\paperheight]{trailer.jpg}%
+\includegraphics[width=0.9\paperwidth,height=0.85\paperheight]{trailer.jpg}%
 \vfill
 }}}
 
-\usepackage{pst-text}
-\DeclareFixedFont{\RM}{T1}{ptm}{b}{n}{2cm}
+\usepackage{contour}
+\newcommand{\cont}[2]{
+    \contourlength{1.5pt}
+    \contour{white}{#1\textcolor{black}{#2}}
+}
 
+\usepackage[font=small,labelfont=bf]{caption}
 \usepackage{lmodern}
 \usepackage{xcolor}
 \usepackage{listings}
@@ -28,23 +32,22 @@
 \begin{titlepage}
     \AddToShipoutPicture*{\BackgroundPic}
     \centering
-
-  \pscharpath[fillstyle=solid,fillcolor=magenta!50]{\RM TeXnik}
-    {\scshape\LARGE Architektura komputerów 2\\ projekt \par}
+    \cont{\scshape\LARGE}{Architektura komputerów 2}\\
+    \cont{\scshape\LARGE}{projekt}\\
     \vspace{1cm}
-    {\scshape\Large,,Konwertowanie plików graficznych w formacie PPM do ciągu znaków ASCII odwzorowującego grafikę''\par}
-    \vspace{6cm}
-    {\itshape\Large Janusz Długosz --- 235746\/\par}
-    {\itshape\Large Marcin Kotas --- 235098\/\par}
+    \cont{\scshape\Large}{,,Konwertowanie plików graficznych w formacie PPM}\\
+    \cont{\scshape\Large}{do ciągu znaków ASCII odwzorowującego grafikę''}\\
+    \vspace{7cm}
+    \cont{\itshape\Large}{Janusz Długosz --- 235746}\\
+    \cont{\itshape\Large}{Marcin Kotas --- 235098}\\
     \vfill
-    Prowadzący:\par
-    Mgr.~Dominik \textsc{Żelazny}
+    \cont{}{Prowadzący:}\\
+    \cont{}{Mgr.~Dominik \textsc{Żelazny}}\\
 
     \vfill
-
-    {\large Wrocław, \today\par}
-
-    %\AddToShipoutPictureBG*{\includegraphics[width=\paperwidth, height=\paperheight]{trailer.jpg}}
+    
+    \cont{\large}{Wrocław, \today}\\
+    
     \ClearShipoutPicture
 
 \end{titlepage}
@@ -112,5 +115,16 @@ P3
     \lstinputlisting[firstline=140,lastline=177]{program/main.s}
 
 \section{Wyniki działania programu}
-
+    \begin{minipage}[t]{.33\textwidth}
+        \includegraphics[width=\textwidth]{kwiatek8.jpg}
+        \captionof{figure}{Czcionka 8x16}
+    \end{minipage}%
+    \begin{minipage}[t]{.33\textwidth}
+        \includegraphics[width=\textwidth]{kwiatek4.jpg}
+        \captionof{figure}{Czcionka 4x8}
+    \end{minipage}%
+    \begin{minipage}[t]{.33\textwidth}
+        \includegraphics[width=\textwidth]{kwiatek1.jpg}
+        \captionof{figure}{Czcionka 1x2}
+    \end{minipage}%
 \end{document}
